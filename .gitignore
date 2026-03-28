@@ -1,0 +1,31 @@
+# --- Master .gitignore for thinkhat ---
+
+# Python
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+**/.env
+**/.venv
+**/env/
+**/venv/
+**/ENV/
+
+# Flutter / Dart
+**/.dart_tool/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/.pub-cache/
+**/.pub/
+**/build/
+**/flutter_01.log
+**/analyze_output.txt
+
+# IDEs
+**/.idea/
+**/.vscode/
+**/*.iml
+
+# OS
+.DS_Store
+Thumbs.db
