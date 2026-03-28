@@ -55,12 +55,12 @@ class _PatternJoinScreenState extends State<PatternJoinScreen> {
           // Navigate to App Screen where the backend connection occurs.
           Navigator.of(context).pushReplacement(
             PageRouteBuilder(
-              pageBuilder: (_, __, ___) => MainAppScreen(
+              pageBuilder: (context, animation, secondaryAnimation) => MainAppScreen(
                 pattern: pattern,
                 username: username,
                 isCreating: widget.isCreating,
               ),
-              transitionsBuilder: (_, animation, __, child) {
+              transitionsBuilder: (context, animation, secondaryAnimation, child) {
                 return FadeTransition(opacity: animation, child: child);
               },
               transitionDuration: const Duration(milliseconds: 800),
@@ -182,7 +182,7 @@ class PatternPainter extends CustomPainter {
     final Color primaryColor = isSuccess ? AppTheme.aiUsedGreen : AppTheme.aiAvailableBlue;
 
     final dotPaint = Paint()
-      ..color = AppTheme.normalGray.withOpacity(0.3)
+      ..color = AppTheme.normalGray.withValues(alpha: 0.3)
       ..style = PaintingStyle.fill;
       
     final selectedDotPaint = Paint()
@@ -191,7 +191,7 @@ class PatternPainter extends CustomPainter {
       ..maskFilter = const MaskFilter.blur(BlurStyle.solid, 4);
       
     final linePaint = Paint()
-      ..color = primaryColor.withOpacity(0.8)
+      ..color = primaryColor.withValues(alpha: 0.8)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 3
       ..strokeCap = StrokeCap.round

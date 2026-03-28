@@ -89,7 +89,7 @@ class _MessageCardState extends State<MessageCard> {
                   bottomRight: Radius.circular(widget.isMe ? 4 : 16),
                 ),
                 boxShadow: [
-                  BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 4, offset: const Offset(0, 2)),
+                  BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 4, offset: const Offset(0, 2)),
                 ],
               ),
               child: Column(
@@ -114,7 +114,7 @@ class _MessageCardState extends State<MessageCard> {
                       margin: const EdgeInsets.only(bottom: 6),
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.2),
+                        color: Colors.black.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(8),
                         border: Border(left: BorderSide(color: AppTheme.aiAvailableBlue, width: 3)),
                       ),
@@ -146,7 +146,7 @@ class _MessageCardState extends State<MessageCard> {
                       const Spacer(),
                       Text(
                         "${widget.message.timestamp.hour}:${widget.message.timestamp.minute.toString().padLeft(2, '0')}",
-                        style: TextStyle(color: AppTheme.textSecondary.withOpacity(0.5), fontSize: 9),
+                        style: TextStyle(color: AppTheme.textSecondary.withValues(alpha: 0.5), fontSize: 9),
                       ),
                     ],
                   ),
@@ -161,9 +161,9 @@ class _MessageCardState extends State<MessageCard> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                     decoration: BoxDecoration(
-                      color: AppTheme.aiAvailableBlue.withOpacity(0.1),
+                      color: AppTheme.aiAvailableBlue.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppTheme.aiAvailableBlue.withOpacity(0.3)),
+                      border: Border.all(color: AppTheme.aiAvailableBlue.withValues(alpha: 0.3)),
                     ),
                     child: const Row(
                       mainAxisSize: MainAxisSize.min,

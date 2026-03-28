@@ -1,11 +1,15 @@
+import os
 import jwt
 from datetime import datetime, timedelta
 from typing import Optional, Dict
+from dotenv import load_dotenv
 from fastapi import HTTPException, Depends, Security
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
-# Use the secret from the user's request
-JWT_SECRET = "supersecretkey"
+load_dotenv()
+
+# Use the secret from environment variables or a fallback for development
+JWT_SECRET = os.getenv("JWT_SECRET", "supersecretkey")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 1440 # 24 HOURS
 

@@ -35,12 +35,12 @@ class _FloatingInputBarState extends State<FloatingInputBar> {
     return Container(
       margin: const EdgeInsets.only(left: 12, right: 12, bottom: 20, top: 0),
       decoration: BoxDecoration(
-        color: AppTheme.surfaceColor.withOpacity(0.95),
+        color: AppTheme.surfaceColor.withValues(alpha: 0.95),
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: AppTheme.surfaceHighlight, width: 1.2),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.4),
+            color: Colors.black.withValues(alpha: 0.4),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -77,7 +77,7 @@ class _FloatingInputBarState extends State<FloatingInputBar> {
                 child: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: AppTheme.aiAvailableBlue.withOpacity(0.15),
+                    color: AppTheme.aiAvailableBlue.withValues(alpha: 0.15),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(Icons.send_rounded, color: AppTheme.aiAvailableBlue, size: 20),

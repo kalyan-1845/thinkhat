@@ -2,8 +2,12 @@ import os
 from motor.motor_asyncio import AsyncIOMotorClient
 from typing import List, Dict, Any, Optional
 
-MONGO_URI = "mongodb+srv://prsnlkalyan_db_user:ZMUJAzjk2JK6pJ03@cluster0.phbbtix.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
-DB_NAME = "flowconnect_db"
+from dotenv import load_dotenv
+
+load_dotenv()
+
+MONGO_URI = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
+DB_NAME = os.getenv("DB_NAME", "flowconnect_db")
 
 class Database:
     client: AsyncIOMotorClient = None
@@ -11,10 +15,17 @@ class Database:
 
     @classmethod
     async def connect_to_mongo(cls):
-        """Initialize connection to Atlas."""
-        cls.client = AsyncIOMotorClient(MONGO_URI)
-        cls.db = cls.client[DB_NAME]
-        print(f"Connected to MongoDB: {DB_NAME}")
+        """Initialize connection to Atlas with error handling."""
+        try:
+            print(f"Connecting to MongoDB: {DB_NAME}...")
+            cls.client = AsyncIOMotorClient(MONGO_URI, serverSelectionTimeoutMS=5000)
+            cls.db = cls.client[DB_NAME]
+            # Simple ping to verify connection
+            await cls.client.admin.command('ping')
+            print(f"✅ Successfully Connected to MongoDB: {DB_NAME}")
+        except Exception as e:
+            print(f"❌ Critical MongoDB Connection Error: {e}")
+            print("⚠️ Backend will continue starting, but database features will fail.")
 
     @classmethod
     async def close_mongo_connection(cls):

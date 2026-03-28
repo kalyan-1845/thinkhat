@@ -116,7 +116,7 @@ class _FlowChatScreenState extends State<FlowChatScreen> {
               alignment: Alignment.center,
               child: Container(
                 width: 1.5,
-                color: (message.type == MessageType.system || isMe) ? Colors.transparent : AppTheme.surfaceHighlight.withOpacity(0.3),
+                color: (message.type == MessageType.system || isMe) ? Colors.transparent : AppTheme.surfaceHighlight.withValues(alpha: 0.3),
               ),
             ),
           
@@ -131,7 +131,7 @@ class _FlowChatScreenState extends State<FlowChatScreen> {
                       child: Container(
                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                          decoration: BoxDecoration(
-                            color: AppTheme.surfaceColor.withOpacity(0.5),
+                            color: AppTheme.surfaceColor.withValues(alpha: 0.5),
                             borderRadius: BorderRadius.circular(12),
                          ),
                          child: Text(

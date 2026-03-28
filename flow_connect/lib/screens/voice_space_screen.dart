@@ -122,7 +122,7 @@ class _VoiceSpaceScreenState extends State<VoiceSpaceScreen> {
                   ),
                   boxShadow: isActive ? [
                     BoxShadow(
-                      color: AppTheme.aiUsedGreen.withOpacity(0.2),
+                      color: AppTheme.aiUsedGreen.withValues(alpha: 0.2),
                       blurRadius: 12,
                       spreadRadius: 2,
                     )
@@ -134,7 +134,7 @@ class _VoiceSpaceScreenState extends State<VoiceSpaceScreen> {
                       width: 40,
                       height: 40,
                       decoration: BoxDecoration(
-                        color: isActive ? AppTheme.aiUsedGreen.withOpacity(0.2) : AppTheme.normalGray.withOpacity(0.2),
+                        color: isActive ? AppTheme.aiUsedGreen.withValues(alpha: 0.2) : AppTheme.normalGray.withValues(alpha: 0.2),
                         shape: BoxShape.circle,
                       ),
                       child: Icon(
@@ -171,7 +171,7 @@ class _VoiceSpaceScreenState extends State<VoiceSpaceScreen> {
               end: Alignment.topCenter,
               colors: [
                 AppTheme.background,
-                AppTheme.background.withOpacity(0.0),
+                AppTheme.background.withValues(alpha: 0.0),
               ],
             ),
           ),
@@ -212,7 +212,7 @@ class _VoiceSpaceScreenState extends State<VoiceSpaceScreen> {
                               height: 80 + (i * 20),
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
-                                border: Border.all(color: AppTheme.aiUsedGreen.withOpacity(0.3 - (i * 0.1))),
+                                border: Border.all(color: AppTheme.aiUsedGreen.withValues(alpha: 0.3 - (i * 0.1))),
                               ),
                             ).animate(onPlay: (controller) => controller.repeat())
                              .scale(begin: Offset(1, 1), end: Offset(1.5, 1.5), duration: 1000.ms, curve: Curves.easeOut)
@@ -227,7 +227,7 @@ class _VoiceSpaceScreenState extends State<VoiceSpaceScreen> {
                             shape: BoxShape.circle,
                             boxShadow: _isSpeaking ? [
                               BoxShadow(
-                                color: AppTheme.aiUsedGreen.withOpacity(0.5),
+                                color: AppTheme.aiUsedGreen.withValues(alpha: 0.5),
                                 blurRadius: 20,
                                 spreadRadius: 5,
                               )
@@ -246,7 +246,7 @@ class _VoiceSpaceScreenState extends State<VoiceSpaceScreen> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: AppTheme.importantYellow.withOpacity(0.2),
+                      color: AppTheme.importantYellow.withValues(alpha: 0.2),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(Icons.exit_to_app_rounded, color: AppTheme.importantYellow),
