@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException
+from typing import Optional
 from fastapi.middleware.cors import CORSMiddleware
 from websocket import router as websocket_router
 from group_manager import group_manager

@@ -21,7 +21,7 @@ class AIRouter:
                 response = await client.post(
                     "https://api.groq.com/openai/v1/chat/completions",
                     headers={
-                        "Authorization": f"Bearer {GROQ_API_KEY}", 
+                        "Authorization": f"Bearer {apiKey}", 
                         "Content-Type": "application/json"
                     },
                     json={
