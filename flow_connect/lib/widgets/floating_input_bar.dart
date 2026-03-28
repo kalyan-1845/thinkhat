@@ -21,50 +21,65 @@ class _FloatingInputBarState extends State<FloatingInputBar> {
   }
 
   @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.only(left: 16, right: 16, bottom: 24, top: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
         color: AppTheme.surfaceColor.withOpacity(0.85),
         borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: AppTheme.surfaceHighlight, width: 1),
+        border: Border.all(color: AppTheme.surfaceHighlight, width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.3),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: Colors.black.withOpacity(0.4),
+            blurRadius: 15,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _controller,
-              style: const TextStyle(color: AppTheme.textPrimary),
-              decoration: const InputDecoration(
-                hintText: "Add a thought...",
-                hintStyle: TextStyle(color: AppTheme.textSecondary),
-                border: InputBorder.none,
-                isDense: true,
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(30),
+        clipBehavior: Clip.antiAlias,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _controller,
+                  style: const TextStyle(color: AppTheme.textPrimary, fontSize: 16),
+                  decoration: const InputDecoration(
+                    hintText: "What's on your mind?",
+                    hintStyle: TextStyle(color: AppTheme.textSecondary, fontSize: 14),
+                    border: InputBorder.none,
+                    isDense: true,
+                    contentPadding: EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  onSubmitted: (_) => _handleSend(),
+                ),
               ),
-              onSubmitted: (_) => _handleSend(),
-            ),
-          ),
-          const SizedBox(width: 8),
-          GestureDetector(
-            onTap: _handleSend,
-            child: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: AppTheme.aiAvailableBlue.withOpacity(0.1),
-                shape: BoxShape.circle,
+              const SizedBox(width: 8),
+              InkWell(
+                onTap: _handleSend,
+                borderRadius: BorderRadius.circular(20),
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppTheme.aiAvailableBlue.withOpacity(0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.send_rounded, color: AppTheme.aiAvailableBlue, size: 22),
+                ),
               ),
-              child: const Icon(Icons.send_rounded, color: AppTheme.aiAvailableBlue, size: 20),
-            ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

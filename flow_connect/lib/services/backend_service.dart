@@ -6,8 +6,9 @@ import 'package:uuid/uuid.dart';
 import 'package:flow_connect/models/chat_message.dart';
 
 class BackendService {
-  static const String baseUrl = 'http://localhost:8000';
-  static const String wsUrl = 'ws://localhost:8000';
+  static const String domain = '127.0.0.1:8000';
+  static const String baseUrl = 'http://$domain';
+  static const String wsUrl = 'ws://$domain';
   
   static final BackendService _instance = BackendService._internal();
   factory BackendService() => _instance;
@@ -38,9 +39,24 @@ class BackendService {
 
   Future<bool> connect(String pattern, String username, {bool isCreating = false}) async {
     try {
+      print('Attempting to ${isCreating ? 'create' : 'join'} room with pattern: $pattern');
+      
+      final body = {
+        'pattern': pattern,
+        'username': username,
+        'mode': isCreating ? 'create' : 'join',
+      };
+      
+      final url = Uri.parse('$baseUrl/group/generate');
+      print('API URL: $url');
+      
       final response = await http.post(
-        Uri.parse('$baseUrl/group/generate?pattern=$pattern&username=$username&mode=${isCreating ? 'create' : 'join'}'),
-      );
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(body),
+      ).timeout(const Duration(seconds: 10));
+      
+      print('API Response Status: ${response.statusCode}');
       
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -49,25 +65,24 @@ class BackendService {
         isCreator = data['is_creator'] ?? false;
         
         final wsUri = Uri.parse('$wsUrl/ws/$currentGroupId/$username');
+        print('Connecting to WebSocket: $wsUri');
+        
         _channel = WebSocketChannel.connect(wsUri);
         
-        // Wrap the stream to handle its lifecycle and check for early closure
         _channel!.stream.listen(_onMessageReceived, onError: (e) {
-             print('WS Error: $e');
+             print('WebSocket Stream Error: $e');
         }, onDone: () {
              final closeCode = _channel?.closeCode;
-             if (closeCode == 1008) {
-               print('Connection rejected: Room is full (Policy Violation)');
-             } else {
-               print('WS Connection Closed with code: $closeCode');
-             }
+             print('WebSocket Closed with code: $closeCode');
         });
 
         return true;
+      } else {
+        print('API Error: ${response.body}');
+        return false;
       }
-      return false;
     } catch (e) {
-      print('Failed to connect: $e');
+      print('Failed to connect to backend: $e');
       return false;
     }
   }
@@ -75,9 +90,8 @@ class BackendService {
   Future<void> destroyRoom() async {
     if (currentGroupId == null || currentUsername == null) return;
     try {
-      await http.post(
-        Uri.parse('$baseUrl/group/$currentGroupId/destroy?username=$currentUsername'),
-      );
+      final uri = Uri.parse('$baseUrl/group/$currentGroupId/destroy?username=$currentUsername');
+      await http.post(uri);
     } catch (e) {
       print('Failed to destroy room: $e');
     }
@@ -92,6 +106,18 @@ class BackendService {
         _chatMessagesController.add(ChatMessage.fromJson(data));
       } else if (msgType == 'ai_response') {
         _aiResponsesController.add(data);
+        
+        _chatMessagesController.add(
+          ChatMessage(
+            id: data['id'] ?? 'ai_${data['messageId']}',
+            username: 'Flow AI',
+            text: data['aiReply'] ?? '',
+            timestamp: DateTime.fromMillisecondsSinceEpoch(
+              (data['timestamp'] as num).toInt() * 1000
+            ),
+            type: MessageType.aiResponse,
+          )
+        );
       } else if (msgType == 'webrtc_signaling') {
         _signalingController.add(data);
       } else if (msgType == 'system') {
@@ -101,7 +127,8 @@ class BackendService {
            );
         }
         _systemEventController.add(data);
-        if (data['username'] != null) {
+        
+        if (data['user'] != null) {
           _chatMessagesController.add(ChatMessage.fromJson(data));
         }
       } else if (msgType == 'node_position_update') {

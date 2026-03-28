@@ -50,15 +50,24 @@ class _MindMapScreenState extends State<MindMapScreen> {
       }
     });
 
-    _aiSub = BackendService().aiResponses.listen((data) {
-       final messageId = data['messageId'];
-       if (mounted && _nodes.containsKey(messageId)) {
-          setState(() {
-            _nodes[messageId]!.type = MessageType.aiResponse;
-            // The actual AI text is in the reply which adds as a new message usually
-          });
-       }
-    });
+     _aiSub = BackendService().aiResponses.listen((data) {
+        final messageId = data['messageId'];
+        if (mounted) {
+           setState(() {
+             if (_nodes.containsKey(messageId)) {
+               _nodes[messageId]!.type = MessageType.aiResponse;
+               
+               // Find the response node if it exists and link it
+               final aiNodeId = data['id'] ?? 'ai_${messageId}';
+               if (_nodes.containsKey(aiNodeId)) {
+                 if (!_nodes[messageId]!.replies.any((r) => r.id == aiNodeId)) {
+                   _nodes[messageId]!.replies.add(_nodes[aiNodeId]!);
+                 }
+               }
+             }
+           });
+        }
+     });
   }
 
   @override

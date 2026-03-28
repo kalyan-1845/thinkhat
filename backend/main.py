@@ -13,8 +13,8 @@ app = FastAPI(title="Real-Time Collaborative API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # Since we're doing an MVP, allow all
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -57,8 +57,17 @@ async def health_check():
     """Simple health checking endpoint."""
     return {"status": "ok", "active_groups": len(group_manager.active_connections)}
 
+from models import RoomRequest
+
 @app.post("/group/generate")
-async def prepare_group(pattern: str, username: str, mode: str = "join"):
+async def prepare_group(request: RoomRequest):
+    """
+    Generate a deterministic group string from a text pattern.
+    The client hashes this and uses it as the group_id in the WS path.
+    """
+    pattern = request.pattern
+    username = request.username
+    mode = request.mode
     """
     Generate a deterministic group string from a text pattern.
     The client hashes this and uses it as the group_id in the WS path.

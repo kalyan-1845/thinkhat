@@ -31,3 +31,8 @@ class GroupSession(BaseModel):
     group_id: str
     users: list[UserSession] = []
     messages: list[ChatMessage] = []
+
+class RoomRequest(BaseModel):
+    pattern: str
+    username: str
+    mode: str = "join"
