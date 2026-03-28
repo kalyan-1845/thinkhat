@@ -12,69 +12,75 @@ class FloatingInputBar extends StatefulWidget {
 
 class _FloatingInputBarState extends State<FloatingInputBar> {
   final TextEditingController _controller = TextEditingController();
+  late final FocusNode _focusNode = FocusNode();
 
   void _handleSend() {
     if (_controller.text.trim().isNotEmpty) {
       widget.onSend(_controller.text.trim());
       _controller.clear();
+      // Ensure focus returns immediately after sending
+      _focusNode.requestFocus();
     }
   }
 
   @override
   void dispose() {
     _controller.dispose();
+    _focusNode.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(left: 16, right: 16, bottom: 24, top: 8),
+      margin: const EdgeInsets.only(left: 12, right: 12, bottom: 20, top: 0),
       decoration: BoxDecoration(
-        color: AppTheme.surfaceColor.withOpacity(0.85),
-        borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: AppTheme.surfaceHighlight, width: 1.5),
+        color: AppTheme.surfaceColor.withOpacity(0.95),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppTheme.surfaceHighlight, width: 1.2),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.4),
-            blurRadius: 15,
-            offset: const Offset(0, 6),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
       child: Material(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(30),
+        borderRadius: BorderRadius.circular(24),
         clipBehavior: Clip.antiAlias,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           child: Row(
             children: [
               Expanded(
                 child: TextField(
                   controller: _controller,
-                  style: const TextStyle(color: AppTheme.textPrimary, fontSize: 16),
+                  focusNode: _focusNode,
+                  autofocus: true,
+                  style: const TextStyle(color: AppTheme.textPrimary, fontSize: 14),
                   decoration: const InputDecoration(
                     hintText: "What's on your mind?",
-                    hintStyle: TextStyle(color: AppTheme.textSecondary, fontSize: 14),
+                    hintStyle: TextStyle(color: AppTheme.textSecondary, fontSize: 13),
                     border: InputBorder.none,
                     isDense: true,
-                    contentPadding: EdgeInsets.symmetric(vertical: 12),
+                    contentPadding: EdgeInsets.symmetric(vertical: 10, horizontal: 8),
                   ),
                   onSubmitted: (_) => _handleSend(),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 4),
               InkWell(
                 onTap: _handleSend,
                 borderRadius: BorderRadius.circular(20),
                 child: Container(
-                  padding: const EdgeInsets.all(10),
+                  padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: AppTheme.aiAvailableBlue.withOpacity(0.2),
+                    color: AppTheme.aiAvailableBlue.withOpacity(0.15),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.send_rounded, color: AppTheme.aiAvailableBlue, size: 22),
+                  child: const Icon(Icons.send_rounded, color: AppTheme.aiAvailableBlue, size: 20),
                 ),
               ),
             ],

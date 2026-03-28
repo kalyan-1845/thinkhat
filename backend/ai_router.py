@@ -26,7 +26,13 @@ class AIRouter:
                     },
                     json={
                         "model": "mixtral-8x7b-32768",
-                        "messages": [{"role": "user", "content": text}]
+                        "messages": [
+                            {
+                                "role": "system", 
+                                "content": "You are a collaborative AI for FlowConnect. Give a single, concise, and direct reply to the user's thought that helps grow their idea. One enter, one reply."
+                            },
+                            {"role": "user", "content": text}
+                        ]
                     },
                     timeout=10.0
                 )

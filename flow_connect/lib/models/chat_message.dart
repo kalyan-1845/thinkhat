@@ -7,6 +7,8 @@ class ChatMessage {
   final DateTime timestamp;
   MessageType type;
   bool isAiTriggered; // maps to 'aiUsed' in json
+  final String? parentMessageText;
+  final String? parentMessageUser;
   List<ChatMessage> replies;
 
   ChatMessage({
@@ -16,6 +18,8 @@ class ChatMessage {
     required this.timestamp,
     this.type = MessageType.normal,
     this.isAiTriggered = false,
+    this.parentMessageText,
+    this.parentMessageUser,
     List<ChatMessage>? replies,
   }) : replies = replies ?? [];
 
@@ -26,7 +30,9 @@ class ChatMessage {
     if (json['type'] == 'system') {
       parsedType = MessageType.system;
     } else if (isAi) {
-      parsedType = MessageType.question; // Assume it was asked
+      parsedType = MessageType.question;
+    } else if (json['type'] == 'ai_response') {
+      parsedType = MessageType.aiResponse;
     }
 
     return ChatMessage(
@@ -38,6 +44,8 @@ class ChatMessage {
           : DateTime.now(),
       type: parsedType,
       isAiTriggered: isAi,
+      parentMessageText: json['parent_text'],
+      parentMessageUser: json['parent_user'],
       replies: [],
     );
   }

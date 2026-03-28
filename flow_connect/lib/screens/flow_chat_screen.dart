@@ -47,6 +47,7 @@ class _FlowChatScreenState extends State<FlowChatScreen> {
            if (targetMsgIndex != -1) {
              final targetMsg = _messages[targetMsgIndex];
              targetMsg.type = MessageType.aiResponse;
+             // Link the AI response as a reply with parent info
              targetMsg.replies.add(
                ChatMessage(
                  id: data['id'] ?? DateTime.now().millisecondsSinceEpoch.toString(),
@@ -56,6 +57,8 @@ class _FlowChatScreenState extends State<FlowChatScreen> {
                    (data['timestamp'] as num).toInt() * 1000
                  ),
                  type: MessageType.aiResponse,
+                 parentMessageText: targetMsg.text,
+                 parentMessageUser: targetMsg.username,
                )
              );
            }
@@ -101,53 +104,39 @@ class _FlowChatScreenState extends State<FlowChatScreen> {
 
   Widget _buildMessageTree(ChatMessage message, {bool isReply = false}) {
     final isPending = _pendingAiRequests.contains(message.id);
+    final isMe = message.username == BackendService().currentUsername;
 
     return IntrinsicHeight(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Timeline connector
-          Container(
-            width: isReply ? 40 : 20, 
-            alignment: isReply ? Alignment.centerRight : Alignment.center,
-            child: Container(
-              width: 2,
-              decoration: BoxDecoration(
-                color: message.type == MessageType.aiResponse 
-                    ? AppTheme.aiUsedGreen.withOpacity(0.5) 
-                    : message.type == MessageType.question 
-                        ? AppTheme.aiAvailableBlue.withOpacity(0.5)
-                        : (message.type == MessageType.system ? Colors.transparent : AppTheme.surfaceHighlight),
-                boxShadow: [
-                  if (message.type == MessageType.aiResponse)
-                    const BoxShadow(
-                      color: AppTheme.aiUsedGreen,
-                      blurRadius: 10,
-                      spreadRadius: 1,
-                    )
-                ],
+          if (!isMe)
+            Container(
+              width: isReply ? 20 : 10, 
+              alignment: Alignment.center,
+              child: Container(
+                width: 1.5,
+                color: (message.type == MessageType.system || isMe) ? Colors.transparent : AppTheme.surfaceHighlight.withOpacity(0.3),
               ),
             ),
-          ),
-          const SizedBox(width: 12),
+          
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (message.type == MessageType.system)
                   Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 12.0),
+                    padding: const EdgeInsets.symmetric(vertical: 8.0),
                     child: Center(
                       child: Container(
-                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                          decoration: BoxDecoration(
-                            color: AppTheme.surfaceColor,
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: AppTheme.surfaceHighlight),
+                            color: AppTheme.surfaceColor.withOpacity(0.5),
+                            borderRadius: BorderRadius.circular(12),
                          ),
                          child: Text(
-                           "${message.username} joined the chat",
-                           style: const TextStyle(color: AppTheme.textSecondary, fontSize: 11, fontWeight: FontWeight.bold),
+                           message.text,
+                           style: const TextStyle(color: AppTheme.textSecondary, fontSize: 10, fontWeight: FontWeight.bold),
                          ),
                       ),
                     ),
@@ -155,23 +144,24 @@ class _FlowChatScreenState extends State<FlowChatScreen> {
                 else
                   MessageCard(
                     message: message,
+                    isMe: isMe,
                     onAiTrigger: () => _triggerAi(message),
                     onReply: () {}, 
-                  ).animate().fade(duration: 400.ms).slideX(begin: 0.05),
+                  ).animate().fade(duration: 300.ms).slideX(begin: isMe ? 0.02 : -0.02),
                 
                 if (isPending)
                   Padding(
-                    padding: const EdgeInsets.only(left: 32, bottom: 16),
+                    padding: const EdgeInsets.only(left: 20, bottom: 12),
                     child: Row(
                        children: [
                          const SizedBox(
-                           width: 12, height: 12,
-                           child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.aiAvailableBlue),
+                           width: 10, height: 10,
+                           child: CircularProgressIndicator(strokeWidth: 1.5, color: AppTheme.aiAvailableBlue),
                          ),
-                         const SizedBox(width: 12),
-                         Text("AI is thinking...", style: TextStyle(color: AppTheme.aiAvailableBlue, fontSize: 12, fontStyle: FontStyle.italic))
-                           .animate(onPlay: (controller) => controller.repeat(reverse: true))
-                           .fade(begin: 0.5, end: 1.0, duration: 800.ms),
+                         const SizedBox(width: 8),
+                         Text("AI is thinking...", style: TextStyle(color: AppTheme.aiAvailableBlue, fontSize: 11, fontStyle: FontStyle.italic))
+                            .animate(onPlay: (controller) => controller.repeat(reverse: true))
+                            .fade(begin: 0.5, end: 1.0, duration: 800.ms),
                        ],
                     ),
                   ),
@@ -181,6 +171,9 @@ class _FlowChatScreenState extends State<FlowChatScreen> {
               ],
             ),
           ),
+          
+          if (isMe)
+            const SizedBox(width: 10),
         ],
       ),
     );
@@ -193,7 +186,7 @@ class _FlowChatScreenState extends State<FlowChatScreen> {
         Expanded(
           child: ListView.builder(
             controller: _scrollController,
-            padding: const EdgeInsets.only(left: 8, right: 16, top: 24, bottom: 20),
+            padding: const EdgeInsets.only(left: 12, right: 12, top: 12, bottom: 12),
             itemCount: _messages.length,
             itemBuilder: (context, index) {
               return _buildMessageTree(_messages[index]);
@@ -202,8 +195,8 @@ class _FlowChatScreenState extends State<FlowChatScreen> {
         ),
         FloatingInputBar(onSend: _sendMessage)
               .animate()
-              .fade(duration: 600.ms)
-              .slideY(begin: 0.2, curve: Curves.easeOutCubic),
+              .fade(duration: 400.ms)
+              .slideY(begin: 0.1, curve: Curves.easeOutCubic),
       ],
     );
   }
