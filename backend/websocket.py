@@ -1,133 +1,128 @@
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from group_manager import group_manager
-from models import ChatMessage, AIResponse, SignalingMessage
-from ai_router import ai_router
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
+from typing import Optional
 import json
 import logging
-import asyncio
-import time
-from typing import Optional
-
-logger = logging.getLogger(__name__)
+from group_manager import group_manager
+from auth import auth_handler
+from models import ChatMessage, AIResponse, SignalingMessage
+import ai_router
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
+
+async def get_token_user(token: str) -> Optional[str]:
+    """Helper to decode JWT from WS query or protocol."""
+    try:
+        payload = auth_handler.decode_token(token)
+        return payload.get("sub")
+    except:
+        return None
 
 @router.websocket("/ws/{group_id}/{username}")
-async def websocket_endpoint(websocket: WebSocket, group_id: str, username: str):
-    is_connected = await group_manager.connect(websocket, group_id, username)
-    if not is_connected:
-        await websocket.close(code=1000, reason="Group is full")
+async def websocket_endpoint(
+    websocket: WebSocket, 
+    group_id: str, 
+    username: str,
+    token: Optional[str] = Query(None)
+):
+    """
+    Main WebSocket for real-time Sync.
+    Now requires a valid 'token' query parameter for JWT Auth.
+    """
+    # 1. VERIFY JWT
+    if not token:
+        logger.warning("WebSocket attempt without token.")
+        await websocket.close(code=4001) # Unauthorized
+        return
+
+    authenticated_user = await get_token_user(token)
+    if not authenticated_user or authenticated_user != username:
+        logger.warning(f"Auth failed for WS user {username}")
+        await websocket.close(code=4002) # Forbidden
+        return
+
+    # 2. CONNECT
+    success = await group_manager.connect(websocket, group_id, username)
+    if not success:
+        await websocket.close(code=4003) # Group full
         return
 
     try:
-        # Send existing history to the newly connected user
-        for history_msg in group_manager.get_history(group_id):
-            try:
-                await websocket.send_json(history_msg)
-            except Exception as e:
-                logger.error(f"Failed to send history to {username}: {e}")
-
-        # Send initial node positions
-        positions = group_manager.get_node_positions(group_id)
-        if positions:
+        # 3. INITIAL STATE PERSISTENCE
+        # Send history (from MongoDB)
+        history = await group_manager.get_history(group_id)
+        if history:
             await websocket.send_json({
+                "type": "system",
+                "event": "initial-history",
+                "messages": history
+            })
+
+        # Send node positions (from MongoDB)
+        positions = await group_manager.get_node_positions(group_id)
+        if positions:
+             await websocket.send_json({
                 "type": "system",
                 "event": "initial-node-positions",
                 "positions": positions
             })
 
-        # Broadcast user joined event (system message)
-        join_msg = {
-            "type": "system",
-            "event": "user-joined",
-            "user": username,
-            "timestamp": int(time.time())
-        }
-        await group_manager.broadcast(join_msg, group_id)
-
+        # 4. MESSAGE LOOP
         while True:
             data = await websocket.receive_text()
-            try:
-                msg_data = json.loads(data)
-                msg_type = msg_data.get("type")
+            message_data = json.loads(data)
+            msg_type = message_data.get("type")
 
-                if msg_type == "chat":
-                    # It's a regular chat message
-                    chat_msg = ChatMessage(**msg_data)
-                    # Store in memory history
-                    group_manager.add_to_history(group_id, chat_msg.model_dump())
-                    # Broadcast to everyone in group
-                    await group_manager.broadcast(chat_msg.model_dump(), group_id)
+            if msg_type == "chat":
+                msg = ChatMessage(**message_data)
+                # Save to Persistent History (MongoDB)
+                await group_manager.add_to_history(group_id, msg.model_dump())
+                # Broadcast
+                await group_manager.broadcast(msg.model_dump(), group_id)
 
-                elif msg_type == "ask_ai":
-                    message_id = msg_data.get("messageId")
-                    if message_id:
-                        history = group_manager.get_history(group_id)
-                        target_msg = next((m for m in history if m.get("id") == message_id and m.get("type") == "chat"), None)
-                        
-                        if target_msg and not target_msg.get("aiUsed", False):
-                            # Ensure we don't process this multiple times across clients
-                            first_time = group_manager.register_message_and_check_duplicate_ai(group_id, message_id)
-                            
-                            if first_time:
-                                # Mark as used in server memory
-                                target_msg["aiUsed"] = True
-                                # Start background task to call AI
-                                temp_chat_msg = ChatMessage(**target_msg)
-                                asyncio.create_task(process_ai_response(temp_chat_msg, group_id))
+            elif msg_type == "node_position_update":
+                # Persist to Mind Map State (MongoDB)
+                await group_manager.update_node_position(
+                    group_id, 
+                    message_data["messageId"], 
+                    message_data["x"], 
+                    message_data["y"]
+                )
+                # Broadcast
+                await group_manager.broadcast(message_data, group_id)
 
-                elif msg_type == "node_position_update":
-                    # Update local memory
-                    group_manager.update_node_position(
-                        group_id, 
-                        msg_data.get("messageId"), 
-                        float(msg_data.get("x")), 
-                        float(msg_data.get("y"))
-                    )
-                    # Broadcast to others
-                    await group_manager.broadcast(msg_data, group_id)
-
-                elif msg_type == "webrtc_signaling":
-                    # Forward signaling message to EVERYONE (or ideally skip sender)
-                    # WebRTC clients must look out for the exact event types.
-                    sig_msg = SignalingMessage(**msg_data)
+            elif msg_type == "ask_ai":
+                # AI Expansion with Persistence
+                message_to_ask = await group_manager.get_message_by_id(group_id, message_data["messageId"])
+                if message_to_ask:
+                    msg_text = message_to_ask.get("text", "")
+                    reply_text = await ai_router.getAIResponse(msg_text)
                     
-                    # Instead of group_manager.broadcast which sends to all, we could specifically send only 
-                    # to others if needed, but standard is to broadcast and let client ignore their own user
-                    await group_manager.broadcast(sig_msg.model_dump(), group_id)
+                    from uuid import uuid4
+                    import time
+                    ai_resp = AIResponse(
+                        id=str(uuid4()),
+                        timestamp=int(time.time()),
+                        messageId=message_data["messageId"],
+                        aiReply=reply_text,
+                        parent_text=msg_text,
+                        parent_user=message_to_ask.get("user")
+                    )
+                    # Persist AI Response
+                    await group_manager.add_to_history(group_id, ai_resp.model_dump())
+                    # Broadcast
+                    await group_manager.broadcast(ai_resp.model_dump(), group_id)
 
-                else:
-                    logger.warning(f"Unknown message type received: {msg_type}")
-
-            except json.JSONDecodeError:
-                logger.error("Invalid JSON received")
-            except Exception as e:
-                logger.error(f"Error processing message: {e}")
+            elif msg_type == "webrtc_signaling":
+                # Real-time signaling (don't persist to DB usually)
+                await group_manager.broadcast(message_data, group_id)
 
     except WebSocketDisconnect:
-        # Handle cleanup
         group_manager.disconnect(websocket, group_id, username)
-        
-        # Broadcast user left event
-        leave_msg = {
+        await group_manager.broadcast({
             "type": "system",
             "event": "user-left",
-            "user": username,
-            "timestamp": int(time.time())
-        }
-        await group_manager.broadcast(leave_msg, group_id)
-
-
-async def process_ai_response(incoming_msg: ChatMessage, group_id: str):
-    """Handles routing the message text to the AI and broadcasting the result."""
-    reply_text = await ai_router.getAIResponse(incoming_msg.text)
-    
-    ai_resp = AIResponse(
-        id=f"ai_{incoming_msg.id}",
-        timestamp=int(time.time()),
-        messageId=incoming_msg.id,
-        aiReply=reply_text
-    )
-    
-    group_manager.add_to_history(group_id, ai_resp.model_dump())
-    await group_manager.broadcast(ai_resp.model_dump(), group_id)
+            "user": username
+        }, group_id)
+    except Exception as e:
+        logger.error(f"WebSocket Loop Error in group {group_id}: {e}")

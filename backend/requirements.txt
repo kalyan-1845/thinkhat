@@ -2,3 +2,8 @@ fastapi
 uvicorn[standard]
 aiohttp
 pydantic
+motor
+pydantic-settings
+pyjwt
+passlib[bcrypt]
+python-multipart

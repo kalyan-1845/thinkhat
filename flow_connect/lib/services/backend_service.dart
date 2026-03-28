@@ -15,6 +15,7 @@ class BackendService {
   BackendService._internal();
 
   WebSocketChannel? _channel;
+  String? _token;
   
   final _chatMessagesController = StreamController<ChatMessage>.broadcast();
   Stream<ChatMessage> get chatMessages => _chatMessagesController.stream;
@@ -37,9 +38,35 @@ class BackendService {
   String? currentGroupId;
   bool isCreator = false;
 
+  Future<bool> login(String username) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/auth/login'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'username': username}),
+      );
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        _token = data['access_token'];
+        currentUsername = username;
+        return true;
+      }
+      return false;
+    } catch (e) {
+      print('Login error: $e');
+      return false;
+    }
+  }
+
   Future<bool> connect(String pattern, String username, {bool isCreating = false}) async {
     try {
-      print('Attempting to ${isCreating ? 'create' : 'join'} room with pattern: $pattern');
+      // Step 1: Login to get JWT if not already logged in as this user
+      if (_token == null || currentUsername != username) {
+        final loginSuccess = await login(username);
+        if (!loginSuccess) return false;
+      }
+
+      print('Attempting to ${isCreating ? 'create' : 'join'} room: $pattern');
       
       final body = {
         'pattern': pattern,
@@ -47,24 +74,21 @@ class BackendService {
         'mode': isCreating ? 'create' : 'join',
       };
       
-      final url = Uri.parse('$baseUrl/group/generate');
-      print('API URL: $url');
-      
       final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
+        Uri.parse('$baseUrl/group/generate'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $_token',
+        },
         body: jsonEncode(body),
       ).timeout(const Duration(seconds: 10));
-      
-      print('API Response Status: ${response.statusCode}');
       
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         currentGroupId = data['group_id'];
-        currentUsername = username;
         isCreator = data['is_creator'] ?? false;
         
-        final wsUri = Uri.parse('$wsUrl/ws/$currentGroupId/$username');
+        final wsUri = Uri.parse('$wsUrl/ws/$currentGroupId/$username?token=$_token');
         print('Connecting to WebSocket: $wsUri');
         
         _channel = WebSocketChannel.connect(wsUri);
@@ -72,13 +96,12 @@ class BackendService {
         _channel!.stream.listen(_onMessageReceived, onError: (e) {
              print('WebSocket Stream Error: $e');
         }, onDone: () {
-             final closeCode = _channel?.closeCode;
-             print('WebSocket Closed with code: $closeCode');
+             print('WebSocket Closed: ${_channel?.closeCode}');
         });
 
         return true;
       } else {
-        print('API Error: ${response.body}');
+        print('API Error (${response.statusCode}): ${response.body}');
         return false;
       }
     } catch (e) {
@@ -88,10 +111,13 @@ class BackendService {
   }
 
   Future<void> destroyRoom() async {
-    if (currentGroupId == null || currentUsername == null) return;
+    if (currentGroupId == null || _token == null) return;
     try {
-      final uri = Uri.parse('$baseUrl/group/$currentGroupId/destroy?username=$currentUsername');
-      await http.post(uri);
+      final uri = Uri.parse('$baseUrl/group/$currentGroupId/destroy');
+      await http.post(
+        uri,
+        headers: {'Authorization': 'Bearer $_token'}
+      );
     } catch (e) {
       print('Failed to destroy room: $e');
     }
@@ -106,29 +132,28 @@ class BackendService {
         _chatMessagesController.add(ChatMessage.fromJson(data));
       } else if (msgType == 'ai_response') {
         _aiResponsesController.add(data);
-        
-        _chatMessagesController.add(
-          ChatMessage(
-            id: data['id'] ?? 'ai_${data['messageId']}',
-            username: 'Flow AI',
-            text: data['aiReply'] ?? '',
-            timestamp: DateTime.fromMillisecondsSinceEpoch(
-              (data['timestamp'] as num).toInt() * 1000
-            ),
-            type: MessageType.aiResponse,
-          )
-        );
+        _chatMessagesController.add(ChatMessage.fromJson({
+          ...data,
+          'type': 'ai_response',
+          'user': 'Flow AI',
+          'aiUsed': true,
+        }));
       } else if (msgType == 'webrtc_signaling') {
         _signalingController.add(data);
       } else if (msgType == 'system') {
-        if (data['event'] == 'initial-node-positions') {
+        final eventName = data['event'];
+        if (eventName == 'initial-node-positions') {
            initialNodePositions = Map<String, Map<String, double>>.from(
              (data['positions'] as Map).map((k, v) => MapEntry(k as String, Map<String, double>.from((v as Map).map((k2, v2) => MapEntry(k2 as String, (v2 as num).toDouble())))))
            );
+        } else if (eventName == 'initial-history') {
+           final List messages = data['messages'] ?? [];
+           for (var m in messages) {
+             _chatMessagesController.add(ChatMessage.fromJson(m));
+           }
         }
         _systemEventController.add(data);
-        
-        if (data['user'] != null) {
+        if (data['user'] != null && eventName != 'initial-history') {
           _chatMessagesController.add(ChatMessage.fromJson(data));
         }
       } else if (msgType == 'node_position_update') {
@@ -141,54 +166,44 @@ class BackendService {
 
   void updateNodePosition(String messageId, double x, double y) {
     if (_channel == null) return;
-    
-    final msg = {
+    _channel!.sink.add(jsonEncode({
       'type': 'node_position_update',
       'messageId': messageId,
       'x': x,
       'y': y,
-    };
-    
-    _channel!.sink.add(jsonEncode(msg));
+    }));
   }
 
   void sendChatMessage(String text, {bool aiUsed = false, String? id}) {
     if (_channel == null) return;
-    
-    final msg = {
+    _channel!.sink.add(jsonEncode({
       'id': id ?? const Uuid().v4(),
       'type': 'chat',
       'user': currentUsername,
       'text': text,
       'timestamp': DateTime.now().millisecondsSinceEpoch ~/ 1000,
       'aiUsed': aiUsed,
-    };
-    
-    _channel!.sink.add(jsonEncode(msg));
+    }));
   }
 
   void askAi(String messageId) {
     if (_channel == null) return;
-    final msg = {
+    _channel!.sink.add(jsonEncode({
       'type': 'ask_ai',
       'messageId': messageId
-    };
-    _channel!.sink.add(jsonEncode(msg));
+    }));
   }
 
   void sendVoiceSignal(bool isSpeaking) {
      if (_channel == null) return;
-     
-     final msg = {
+     _channel!.sink.add(jsonEncode({
         'id': const Uuid().v4(),
         'type': 'webrtc_signaling',
         'event': 'user-speaking',
         'user': currentUsername,
         'timestamp': DateTime.now().millisecondsSinceEpoch ~/ 1000,
         'data': { 'isSpeaking': isSpeaking }
-     };
-
-     _channel!.sink.add(jsonEncode(msg));
+     }));
   }
 
   void dispose() {
