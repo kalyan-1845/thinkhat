@@ -34,7 +34,7 @@ class ChatMessage {
       username: json['user'] ?? 'Unknown',
       text: json['text'] ?? '',
       timestamp: json['timestamp'] != null 
-          ? DateTime.fromMicrosecondsSinceEpoch(json['timestamp'] is int ? json['timestamp'] * 1000000 : int.parse(json['timestamp'].toString()) * 1000000) 
+          ? DateTime.fromMillisecondsSinceEpoch((json['timestamp'] as num).toInt() * 1000) 
           : DateTime.now(),
       type: parsedType,
       isAiTriggered: isAi,

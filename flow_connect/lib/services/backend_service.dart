@@ -27,26 +27,41 @@ class BackendService {
   final _systemEventController = StreamController<Map<String, dynamic>>.broadcast();
   Stream<Map<String, dynamic>> get systemEvents => _systemEventController.stream;
 
+  final _nodeUpdateController = StreamController<Map<String, dynamic>>.broadcast();
+  Stream<Map<String, dynamic>> get nodeUpdates => _nodeUpdateController.stream;
+
+  Map<String, Map<String, double>> initialNodePositions = {};
+
   String? currentUsername;
   String? currentGroupId;
+  bool isCreator = false;
 
-  Future<bool> connect(String pattern, String username) async {
+  Future<bool> connect(String pattern, String username, {bool isCreating = false}) async {
     try {
-      currentUsername = username;
-      final response = await http.post(Uri.parse('$baseUrl/group/generate?pattern=$pattern'));
+      final response = await http.post(
+        Uri.parse('$baseUrl/group/generate?pattern=$pattern&username=$username&mode=${isCreating ? 'create' : 'join'}'),
+      );
       
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         currentGroupId = data['group_id'];
+        currentUsername = username;
+        isCreator = data['is_creator'] ?? false;
         
-        _channel = WebSocketChannel.connect(
-          Uri.parse('$wsUrl/ws/$currentGroupId/$username'),
-        );
-
-        _channel!.stream.listen(_onMessageReceived, 
-          onDone: () => print('WebSocket connection closed'),
-          onError: (error) => print('WebSocket error: $error')
-        );
+        final wsUri = Uri.parse('$wsUrl/ws/$currentGroupId/$username');
+        _channel = WebSocketChannel.connect(wsUri);
+        
+        // Wrap the stream to handle its lifecycle and check for early closure
+        _channel!.stream.listen(_onMessageReceived, onError: (e) {
+             print('WS Error: $e');
+        }, onDone: () {
+             final closeCode = _channel?.closeCode;
+             if (closeCode == 1008) {
+               print('Connection rejected: Room is full (Policy Violation)');
+             } else {
+               print('WS Connection Closed with code: $closeCode');
+             }
+        });
 
         return true;
       }
@@ -54,6 +69,17 @@ class BackendService {
     } catch (e) {
       print('Failed to connect: $e');
       return false;
+    }
+  }
+
+  Future<void> destroyRoom() async {
+    if (currentGroupId == null || currentUsername == null) return;
+    try {
+      await http.post(
+        Uri.parse('$baseUrl/group/$currentGroupId/destroy?username=$currentUsername'),
+      );
+    } catch (e) {
+      print('Failed to destroy room: $e');
     }
   }
 
@@ -69,11 +95,34 @@ class BackendService {
       } else if (msgType == 'webrtc_signaling') {
         _signalingController.add(data);
       } else if (msgType == 'system') {
+        if (data['event'] == 'initial-node-positions') {
+           initialNodePositions = Map<String, Map<String, double>>.from(
+             (data['positions'] as Map).map((k, v) => MapEntry(k as String, Map<String, double>.from((v as Map).map((k2, v2) => MapEntry(k2 as String, (v2 as num).toDouble())))))
+           );
+        }
         _systemEventController.add(data);
+        if (data['username'] != null) {
+          _chatMessagesController.add(ChatMessage.fromJson(data));
+        }
+      } else if (msgType == 'node_position_update') {
+        _nodeUpdateController.add(data);
       }
     } catch (e) {
       print('Error parsing message: $e');
     }
+  }
+
+  void updateNodePosition(String messageId, double x, double y) {
+    if (_channel == null) return;
+    
+    final msg = {
+      'type': 'node_position_update',
+      'messageId': messageId,
+      'x': x,
+      'y': y,
+    };
+    
+    _channel!.sink.add(jsonEncode(msg));
   }
 
   void sendChatMessage(String text, {bool aiUsed = false, String? id}) {
@@ -88,6 +137,15 @@ class BackendService {
       'aiUsed': aiUsed,
     };
     
+    _channel!.sink.add(jsonEncode(msg));
+  }
+
+  void askAi(String messageId) {
+    if (_channel == null) return;
+    final msg = {
+      'type': 'ask_ai',
+      'messageId': messageId
+    };
     _channel!.sink.add(jsonEncode(msg));
   }
 
@@ -112,5 +170,6 @@ class BackendService {
     _aiResponsesController.close();
     _signalingController.close();
     _systemEventController.close();
+    _nodeUpdateController.close();
   }
 }

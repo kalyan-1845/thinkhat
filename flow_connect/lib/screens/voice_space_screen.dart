@@ -202,26 +202,44 @@ class _VoiceSpaceScreenState extends State<VoiceSpaceScreen> {
                     onTapDown: (_) => _toggleSelfSpeaking(true),
                     onTapUp: (_) => _toggleSelfSpeaking(false),
                     onTapCancel: () => _toggleSelfSpeaking(false),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      width: _isSpeaking ? 90 : 80,
-                      height: _isSpeaking ? 90 : 80,
-                      decoration: BoxDecoration(
-                        color: _isSpeaking ? AppTheme.aiUsedGreen : AppTheme.surfaceHighlight,
-                        shape: BoxShape.circle,
-                        boxShadow: _isSpeaking ? [
-                          BoxShadow(
-                            color: AppTheme.aiUsedGreen.withOpacity(0.5),
-                            blurRadius: 20,
-                            spreadRadius: 5,
-                          )
-                        ] : [],
-                      ),
-                      child: Icon(
-                        Icons.mic_rounded,
-                        color: _isSpeaking ? AppTheme.background : AppTheme.textPrimary,
-                        size: _isSpeaking ? 40 : 32,
-                      ),
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        if (_isSpeaking)
+                          ...List.generate(3, (i) => 
+                            Container(
+                              width: 80 + (i * 20),
+                              height: 80 + (i * 20),
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(color: AppTheme.aiUsedGreen.withOpacity(0.3 - (i * 0.1))),
+                              ),
+                            ).animate(onPlay: (controller) => controller.repeat())
+                             .scale(begin: Offset(1, 1), end: Offset(1.5, 1.5), duration: 1000.ms, curve: Curves.easeOut)
+                             .fade(begin: 1, end: 0)
+                          ),
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          width: _isSpeaking ? 90 : 80,
+                          height: _isSpeaking ? 90 : 80,
+                          decoration: BoxDecoration(
+                            color: _isSpeaking ? AppTheme.aiUsedGreen : AppTheme.surfaceHighlight,
+                            shape: BoxShape.circle,
+                            boxShadow: _isSpeaking ? [
+                              BoxShadow(
+                                color: AppTheme.aiUsedGreen.withOpacity(0.5),
+                                blurRadius: 20,
+                                spreadRadius: 5,
+                              )
+                            ] : [],
+                          ),
+                          child: Icon(
+                            Icons.mic_rounded,
+                            color: _isSpeaking ? AppTheme.background : AppTheme.textPrimary,
+                            size: _isSpeaking ? 40 : 32,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(width: 32),

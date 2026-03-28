@@ -5,7 +5,8 @@ import 'package:flow_connect/theme/app_theme.dart';
 import 'package:flow_connect/screens/main_app_screen.dart';
 
 class PatternJoinScreen extends StatefulWidget {
-  const PatternJoinScreen({super.key});
+  final bool isCreating;
+  const PatternJoinScreen({super.key, required this.isCreating});
 
   @override
   State<PatternJoinScreen> createState() => _PatternJoinScreenState();
@@ -51,11 +52,13 @@ class _PatternJoinScreenState extends State<PatternJoinScreen> {
         
         Future.delayed(const Duration(milliseconds: 600), () {
           if (!mounted) return;
+          // Navigate to App Screen where the backend connection occurs.
           Navigator.of(context).pushReplacement(
             PageRouteBuilder(
               pageBuilder: (_, __, ___) => MainAppScreen(
                 pattern: pattern,
                 username: username,
+                isCreating: widget.isCreating,
               ),
               transitionsBuilder: (_, animation, __, child) {
                 return FadeTransition(opacity: animation, child: child);
@@ -95,13 +98,21 @@ class _PatternJoinScreenState extends State<PatternJoinScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.background,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: AppTheme.textPrimary),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ),
       body: SafeArea(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Spacer(),
             Text(
-              "Draw to Connect",
+              widget.isCreating ? "Draw to Create Room" : "Draw to Join Room",
               style: TextStyle(
                 color: _isSuccess ? AppTheme.aiUsedGreen : AppTheme.aiAvailableBlue,
                 fontSize: 24,

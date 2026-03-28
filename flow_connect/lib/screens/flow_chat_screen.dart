@@ -16,6 +16,8 @@ class FlowChatScreen extends StatefulWidget {
 
 class _FlowChatScreenState extends State<FlowChatScreen> {
   final List<ChatMessage> _messages = [];
+  final Set<String> _pendingAiRequests = {};
+  final ScrollController _scrollController = ScrollController();
   late StreamSubscription _chatSub;
   late StreamSubscription _aiSub;
 
@@ -26,11 +28,11 @@ class _FlowChatScreenState extends State<FlowChatScreen> {
     _chatSub = BackendService().chatMessages.listen((msg) {
       if (mounted) {
         setState(() {
-          // Prevent duplicates visually
           if (!_messages.any((m) => m.id == msg.id)) {
              _messages.add(msg);
           }
         });
+        _scrollToBottom();
       }
     });
 
@@ -40,6 +42,7 @@ class _FlowChatScreenState extends State<FlowChatScreen> {
        
        if (mounted) {
          setState(() {
+           _pendingAiRequests.remove(messageId);
            final targetMsgIndex = _messages.indexWhere((m) => m.id == messageId);
            if (targetMsgIndex != -1) {
              final targetMsg = _messages[targetMsgIndex];
@@ -49,17 +52,28 @@ class _FlowChatScreenState extends State<FlowChatScreen> {
                  id: data['id'] ?? DateTime.now().millisecondsSinceEpoch.toString(),
                  username: 'Flow AI',
                  text: replyText,
-                 timestamp: DateTime.fromMicrosecondsSinceEpoch(
-                   data['timestamp'] is int 
-                     ? data['timestamp'] * 1000000 
-                     : int.parse(data['timestamp'].toString()) * 1000000
+                 timestamp: DateTime.fromMillisecondsSinceEpoch(
+                   (data['timestamp'] as num).toInt() * 1000
                  ),
                  type: MessageType.aiResponse,
                )
              );
            }
          });
+         _scrollToBottom();
        }
+    });
+  }
+
+  void _scrollToBottom() {
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 400),
+          curve: Curves.easeOutCubic,
+        );
+      }
     });
   }
 
@@ -67,6 +81,7 @@ class _FlowChatScreenState extends State<FlowChatScreen> {
   void dispose() {
     _chatSub.cancel();
     _aiSub.cancel();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -76,22 +91,24 @@ class _FlowChatScreenState extends State<FlowChatScreen> {
 
   void _triggerAi(ChatMessage message) {
     setState(() {
+      _pendingAiRequests.add(message.id);
       message.isAiTriggered = true;
       message.type = MessageType.question;
     });
 
-    // Send original message with aiUsed flag set to true
-    BackendService().sendChatMessage(message.text, aiUsed: true, id: message.id);
+    BackendService().askAi(message.id);
   }
 
   Widget _buildMessageTree(ChatMessage message, {bool isReply = false}) {
+    final isPending = _pendingAiRequests.contains(message.id);
+
     return IntrinsicHeight(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // Timeline connector
           Container(
-            width: isReply ? 40 : 20, // Indent replies
+            width: isReply ? 40 : 20, 
             alignment: isReply ? Alignment.centerRight : Alignment.center,
             child: Container(
               width: 2,
@@ -105,7 +122,7 @@ class _FlowChatScreenState extends State<FlowChatScreen> {
                   if (message.type == MessageType.aiResponse)
                     const BoxShadow(
                       color: AppTheme.aiUsedGreen,
-                      blurRadius: 4,
+                      blurRadius: 10,
                       spreadRadius: 1,
                     )
                 ],
@@ -119,11 +136,19 @@ class _FlowChatScreenState extends State<FlowChatScreen> {
               children: [
                 if (message.type == MessageType.system)
                   Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8.0),
+                    padding: const EdgeInsets.symmetric(vertical: 12.0),
                     child: Center(
-                      child: Text(
-                        "${message.username} joined the chat",
-                        style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12),
+                      child: Container(
+                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                         decoration: BoxDecoration(
+                            color: AppTheme.surfaceColor,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: AppTheme.surfaceHighlight),
+                         ),
+                         child: Text(
+                           "${message.username} joined the chat",
+                           style: const TextStyle(color: AppTheme.textSecondary, fontSize: 11, fontWeight: FontWeight.bold),
+                         ),
                       ),
                     ),
                   )
@@ -132,7 +157,25 @@ class _FlowChatScreenState extends State<FlowChatScreen> {
                     message: message,
                     onAiTrigger: () => _triggerAi(message),
                     onReply: () {}, 
-                  ).animate().fade(duration: 400.ms).slideX(begin: 0.1, duration: 400.ms, curve: Curves.easeOutCubic),
+                  ).animate().fade(duration: 400.ms).slideX(begin: 0.05),
+                
+                if (isPending)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 32, bottom: 16),
+                    child: Row(
+                       children: [
+                         const SizedBox(
+                           width: 12, height: 12,
+                           child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.aiAvailableBlue),
+                         ),
+                         const SizedBox(width: 12),
+                         Text("AI is thinking...", style: TextStyle(color: AppTheme.aiAvailableBlue, fontSize: 12, fontStyle: FontStyle.italic))
+                           .animate(onPlay: (controller) => controller.repeat(reverse: true))
+                           .fade(begin: 0.5, end: 1.0, duration: 800.ms),
+                       ],
+                    ),
+                  ),
+
                 if (message.replies.isNotEmpty)
                   ...message.replies.map((reply) => _buildMessageTree(reply, isReply: true)),
               ],
@@ -145,24 +188,22 @@ class _FlowChatScreenState extends State<FlowChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
+    return Column(
       children: [
-        ListView.builder(
-          padding: const EdgeInsets.only(left: 8, right: 16, top: 24, bottom: 100),
-          itemCount: _messages.length,
-          itemBuilder: (context, index) {
-            return _buildMessageTree(_messages[index]);
-          },
+        Expanded(
+          child: ListView.builder(
+            controller: _scrollController,
+            padding: const EdgeInsets.only(left: 8, right: 16, top: 24, bottom: 20),
+            itemCount: _messages.length,
+            itemBuilder: (context, index) {
+              return _buildMessageTree(_messages[index]);
+            },
+          ),
         ),
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: 0,
-          child: FloatingInputBar(onSend: _sendMessage)
+        FloatingInputBar(onSend: _sendMessage)
               .animate()
-              .fade(duration: 600.ms, delay: 200.ms)
-              .slideY(begin: 0.5, curve: Curves.easeOutCubic),
-        ),
+              .fade(duration: 600.ms)
+              .slideY(begin: 0.2, curve: Curves.easeOutCubic),
       ],
     );
   }
